@@ -9,12 +9,10 @@
 #define DBG printf("%s\n", &THIS)
 #define OK = p->ok
 
-typedef enum kind {
-  type_kind,
-  assign_kind,
-  call_kind,
-  value_kind,
-} kind;
+typedef enum statement_kind {
+  statement_assign_kind,
+  statement_call_kind,
+} statement_kind;
 
 typedef enum value_type {
   string_type,
@@ -28,7 +26,7 @@ typedef struct parser {
   int ok;
 } parser;
 
-typedef struct node node;
+typedef struct statement statement;
 
 typedef struct unit {
   int start; // Index of the first char of the unit
@@ -50,7 +48,7 @@ typedef struct call {
 } call;
 
 typedef struct block {
-  node* statement;
+  statement* statement;
   struct block* next; // Linked list, assume 0 == end
 } block;
 
@@ -61,28 +59,35 @@ typedef struct func_decl {
   block* body;
 } func_decl;
 
-typedef struct assign {
-  type type;
-  unit name;
-  node* expr;
-} assign;
+typedef enum expr_kind {
+  expr_call_kind,
+  expr_value_kind,
+} expr_kind;
 
-typedef struct node {
-  kind kind;
+typedef struct expr {
+  expr_kind kind;
   union {
-    type type;
-    assign assign;
     call call;
     value value;
   };
-} node;
+} expr;
 
+typedef struct assign {
+  type type;
+  unit name;
+  expr* expr;
+} assign;
+
+typedef struct statement {
+  statement_kind kind;
+  union {
+    assign assign;
+    call call;
+  };
+} statement;
 
 block* parse_scope(parser* p);
-node* parse_statement(parser* p);
-void parse_function(parser* p);
-
-//return 0; \n					\
+statement* parse_statement(parser* p);
 
 void print_unit(parser* p, unit u) {
   for (int i = u.start; i < u.end; i++) {
@@ -108,21 +113,20 @@ unit parse_text(parser* p) {
   return u;
 }
 
-node parse_number(parser* p) {
+value parse_number(parser* p) {
   parse_whitespace(p);
   p->ok = 1; // Reset index
   int i = p->index; // Save index
 
-  node n = {.kind = value_kind};
-  value* v = &n.value;
-  v->type = integer_type;
+  value v;
+  v.type = integer_type;
   
   unit u = {.start = p->index};
 
   // Return early if not ok
   if (THIS < '0' || THIS > '9') {
     p->ok = 0;
-    return n;
+    return v;
   }
   
   while (THIS >= '0' && THIS <= '9'){
@@ -130,8 +134,8 @@ node parse_number(parser* p) {
   }
 
   u.end = p->index;
-  v->data = u;
-  return n;
+  v.data = u;
+  return v;
 }
 
 void parse_exact(parser* p, char c) {
@@ -142,14 +146,13 @@ void parse_exact(parser* p, char c) {
   return;
 }
 
-node parse_string(parser* p) {
+value parse_string(parser* p) {
   parse_whitespace(p);
   p->ok = 1; // Reset index
   int i = p->index; // Save index
 
-  node n = {.kind = value_kind};
-  value* v = &n.value;
-  v->type = string_type;
+  value v;
+  v.type = string_type;
   
   unit u = {.start = p->index};
 
@@ -162,8 +165,8 @@ node parse_string(parser* p) {
   parse_exact(p, '"');
 
   u.end = p->index;
-  v->data = u;
-  return n;
+  v.data = u;
+  return v;
 }
 
 /* Types have a word and maybe a '*' */
@@ -214,14 +217,14 @@ void print_call(parser* p, call c) {
     printf("()");
 }
 
-void print_expr(parser* p, node* n) {
-  if (n->kind == value_kind) print_value(p, n->value);
-  if (n->kind == call_kind)  print_call(p,  n->call);
+void print_expr(parser* p, expr* e) {
+  if (e->kind == expr_value_kind) print_value(p, e->value);
+  if (e->kind == expr_call_kind)  print_call(p,  e->call);
 }
 
-void print_node(parser* p, node* n) {
-  if (n->kind == assign_kind) print_assign(p, n->assign);
-  if (n->kind == call_kind)   print_call(p,   n->call);
+void print_statement(parser* p, statement* s) {
+  if (s->kind == statement_assign_kind) print_assign(p, s->assign);
+  if (s->kind == statement_call_kind)   print_call(p,   s->call);
 
   printf(";\n");
 }
@@ -235,41 +238,48 @@ void print_assign(parser* p, assign a) {
   print_expr(p, a.expr);
 }
 
-node parse_call(parser* p) {
+call parse_call(parser* p) {
   parse_whitespace(p);
   p->ok = 1;
 
-  node n = {.kind = call_kind};
-  call* c = &n.call;
+  call c;
 
-  c->name = parse_text(p);
-  if (!p->ok) return n;
+  c.name = parse_text(p);
+  if (!p->ok) return c;
   parse_exact(p, '(');
-  if (!p->ok) return n;
+  if (!p->ok) return c;
   parse_exact(p, ')');
-  if (!p->ok) return n;
+  if (!p->ok) return c;
   
-  return n;
+  return c;
 }
 
-node parse_expr(parser* p) {
+expr* parse_expr(parser* p) {
   parse_whitespace(p);
   p->ok = 1;
-  node n;
-  n = parse_call(p);
-  if (!p->ok) n = parse_number(p);
-  if (!p->ok) n = parse_string(p);
-  return n;
+  expr* e = malloc(sizeof(expr));
+
+  e->kind = expr_call_kind;
+  e->call = parse_call(p);
+
+  if (!p->ok) {
+    e->kind = expr_value_kind;
+    e->value = parse_number(p);
+  }
+
+  if (!p->ok) {
+    e->kind = expr_value_kind;
+    e->value = parse_string(p);
+  }
+  return e;
 }
 
-node parse_assign(parser* p) {
+assign parse_assign(parser* p) {
   parse_whitespace(p);
   p->ok = 1;
   int i = p->index;
 
-  node n = {.kind = assign_kind};
-  assign a = n.assign;
-
+  assign a;
 
   type type = parse_type(p);
 
@@ -278,24 +288,23 @@ node parse_assign(parser* p) {
   parse_exact(p, '=');
   if (!p->ok) {
     p->index = i;
-    return n;
+    return a;
   }
 
-  node* expr_node = malloc(sizeof(node));
-  *expr_node = parse_expr(p);
+  expr* expr  = parse_expr(p);
   
   if (!p->ok) {
     p->index = i;
-    return n;
+    return a;
   }
 
-  n.assign = (assign){
+  a = (assign){
     .type = type,
     .name = name,
-    .expr = expr_node,
+    .expr = expr,
   };
 
-  return n;
+  return a;
 }
 
 func_decl* parse_function_decl(parser* p) {
@@ -324,7 +333,7 @@ void print_block(parser* p, block* b) {
  // @TODO unsure about this logic, but it works B)
   for(;;) {
     if (iter->next != 0) {
-      print_node(p, iter->statement);
+      print_statement(p, iter->statement);
       iter = iter->next;
     } else break;
   }
@@ -339,26 +348,28 @@ void print_func_decl(parser* p, func_decl* f) {
   printf("}\n");
 }
 
-node* parse_statement(parser* p) {
+statement* parse_statement(parser* p) {
   parse_whitespace(p);
 
-  node* n = malloc(sizeof(node));
+  statement* s = malloc(sizeof(statement));
   
   // Check assignment
   p->ok = 1;
-  *n = parse_assign(p);
+  s->kind = statement_assign_kind;
+  s->assign = parse_assign(p);
   if (p->ok) {
-    return n;
+    return s;
   }
 
   // Check Check for function call
   p->ok = 1;
-  *n = parse_call(p);
+  s->kind = statement_call_kind;
+  s->call = parse_call(p);
   if (p->ok) {
-    return n;
+    return s;
   }
 
-  return n;
+  return s;
 }
 
 block* parse_block(parser* p) {
