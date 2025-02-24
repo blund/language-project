@@ -156,8 +156,6 @@ value parse_string(parser* p) {
   
   unit u = {.start = p->index};
 
-  // Return early if not ok
-
   parse_exact(p, '"');
   while (THIS != '"') {
     p->index++;
@@ -230,7 +228,6 @@ void print_statement(parser* p, statement* s) {
 }
 
 void print_assign(parser* p, assign a) {
-
   print_type(p, a.type);
   printf(" ");
   print_unit(p, a.name);
@@ -300,7 +297,7 @@ assign parse_assign(parser* p) {
   return a;
 }
 
-func_decl* parse_function_decl(parser* p) {
+func_decl parse_func_decl(parser* p) {
   parse_whitespace(p);
   p->ok = 1;
 
@@ -312,10 +309,10 @@ func_decl* parse_function_decl(parser* p) {
 
   block* block = parse_scope(p);
 
-  func_decl* f = malloc(sizeof(func_decl));
-  f->name = name;
-  f->ret = type;
-  f->body = block;
+  func_decl f;
+  f.name = name;
+  f.ret = type;
+  f.body = block;
 
   return f;
 }
@@ -345,6 +342,8 @@ statement* parse_statement(parser* p) {
   parse_whitespace(p);
 
   statement* s = malloc(sizeof(statement));
+
+  // Function declaration
   
   // Check assignment
   p->ok = 1;
@@ -378,9 +377,26 @@ block* parse_block(parser* p) {
   if (!p->ok) {
     b->next = 0; // Indicate the end of linked list
     p->index = i;
+    free(b->statement);
     return b;
   }
 
+  block* iter = b;
+  for (;;) {
+    iter->next = 0;
+    statement* s = parse_statement(p);
+    parse_exact(p, ';');
+
+    if (!p->ok) {
+      free(s);
+      return b;
+    }
+
+    iter->next = malloc(sizeof(block));
+    iter = iter->next;
+    iter->statement = s;
+  }
+  
   b->next = parse_block(p);
 
   return b;
@@ -398,8 +414,19 @@ block* parse_scope(parser* p) {
   return b;
 }
 
+void parse_declaration(parser* p) {
+  // Function declaration
+  // Var declaration
+}
+
+void parse_top(parser* p) {
+  // Declare some var e. Linked list of top level declarations
+}
+
 char* program = \
-"int main() { \n\
+
+"\
+int main() { \n\
   int a = 123; \n\
   char* b = \"schmak123\"; \n\
   epic(); \n\
@@ -415,6 +442,6 @@ int main() {
     .index = 0,
   };
 
-  func_decl* f = parse_function_decl(&p);
-  print_func_decl(&p, f);
+  func_decl f = parse_func_decl(&p);
+  print_func_decl(&p, &f);
 }
