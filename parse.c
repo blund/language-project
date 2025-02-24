@@ -1,8 +1,5 @@
 #include "string.h"
-#include <stdio.h>
-#include <stdbool.h>
-#include <string.h>
-#include <malloc.h>
+#include "stdlib.h"
 
 #include "ast.h"
 #include "parse.h"
@@ -246,8 +243,6 @@ block* parse_block(parser* p) {
     iter->next = next;
     iter = next;
   }
-
-  puts("FAILED PARSE BLOCK?");
   return b;
 }
 
