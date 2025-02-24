@@ -1,18 +1,12 @@
-
-
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 #include <malloc.h>
+#include <stdlib.h>
 
 #define THIS p->code[p->index]
-#define DBG printf("%s\n", &THIS)
+#define DBG printf("DBG:\n%s\n\n", &THIS)
 #define OK = p->ok
-
-typedef enum statement_kind {
-  statement_assign_kind,
-  statement_call_kind,
-} statement_kind;
 
 typedef enum value_type {
   string_type,
@@ -47,10 +41,21 @@ typedef struct call {
   unit name;
 } call;
 
+typedef enum statement_kind {
+  statement_assign_kind,
+  statement_call_kind,
+  statement_if_kind,
+} statement_kind;
+
 typedef struct block {
   statement* statement;
   struct block* next; // Linked list, assume 0 == end
 } block;
+
+typedef struct if_block {
+  unit condition;
+  block* body;
+} if_block;
 
 typedef struct func_decl {
   unit   name;
@@ -81,13 +86,15 @@ typedef struct assign {
 typedef struct statement {
   statement_kind kind;
   union {
-    assign assign;
-    call   call;
+    assign   assign;
+    call     call;
+    if_block if_block;
   };
 } statement;
 
 block* parse_scope(parser* p);
 statement* parse_statement(parser* p);
+if_block parse_if_block(parser* p);
 
 void print_unit(parser* p, unit u) {
   for (int i = u.start; i < u.end; i++) {
@@ -140,6 +147,7 @@ value parse_number(parser* p) {
 
 void parse_exact(parser* p, char c) {
   parse_whitespace(p);
+
   p->ok = THIS == c;
   if (p->ok) p->index++;
 
@@ -212,6 +220,7 @@ void print_expr(parser* p, expr* e) {
 void print_statement(parser* p, statement* s) {
   if (s->kind == statement_assign_kind) print_assign(p, s->assign);
   if (s->kind == statement_call_kind)   print_call(p,   s->call);
+  if (s->kind == statement_if_kind)     puts("if-statement :)");
 
   printf(";\n");
 }
@@ -227,15 +236,17 @@ void print_assign(parser* p, assign a) {
 call parse_call(parser* p) {
   parse_whitespace(p);
   p->ok = 1;
+  int i = p->index;
 
   call c;
 
   c.name = parse_text(p);
-  if (!p->ok) return c;
   parse_exact(p, '(');
-  if (!p->ok) return c;
   parse_exact(p, ')');
-  if (!p->ok) return c;
+  if (!p->ok) {
+    p->index = i;
+    return c;
+  }
   
   return c;
 }
@@ -311,10 +322,9 @@ void print_block(parser* p, block* b) {
 
  // @TODO unsure about this logic, but it works B)
   for(;;) {
-    if (iter->next != 0) {
-      print_statement(p, iter->statement);
-      iter = iter->next;
-    } else break;
+    print_statement(p, iter->statement);
+    if (iter->next == 0) return;
+    iter = iter->next;
   }
 }
 
@@ -331,9 +341,7 @@ statement* parse_statement(parser* p) {
   parse_whitespace(p);
 
   statement* s = malloc(sizeof(statement));
-
-  // Function declaration
-  
+ 
   // Check assignment
   p->ok = 1;
   s->kind = statement_assign_kind;
@@ -350,57 +358,82 @@ statement* parse_statement(parser* p) {
     return s;
   }
 
+  /*
+  // Check for if block
+  p->ok = 1;
+  s->kind = statement_if_kind;
+  s->if_block = parse_if_block(p);
+  if (p->ok) {
+    return s;
+  }
+  */
   return s;
 }
 
 block* parse_block(parser* p) {
   int i = p->index;
 
-  block* b = malloc(sizeof(block));
 
-  // Parse first statement
+  block* b = malloc(sizeof(block));
   b->statement = parse_statement(p);
   parse_exact(p, ';');
 
-  // Return on failure
-  if (!p->ok) {
-    b->next = 0; // Indicate the end of linked list
-    p->index = i;
-    free(b->statement);
-    return b;
-  }
+  if (!p->ok) return b;
+
+  b->next = 0;
 
   block* iter = b;
   for (;;) {
-    iter->next = 0;
     statement* s = parse_statement(p);
     parse_exact(p, ';');
 
     if (!p->ok) {
-      free(s);
+      p->ok = 1; // This is an expected condition
+      iter->next = 0;
       return b;
     }
 
-    iter->next = malloc(sizeof(block));
-    iter = iter->next;
-    iter->statement = s;
+    block* next = malloc(sizeof(block));
+    next->statement = s;
+    iter->next = next;
+    iter = next;
   }
-  
-  b->next = parse_block(p);
-
+ 
   return b;
 }
 
 block* parse_scope(parser* p) {
+  int i = p->index;
   p->ok = 1;
   parse_exact(p, '{');
   block* b = parse_block(p);
   parse_exact(p, '}');
 
   if (!p->ok) {
+    p->index = 1;
     puts("error");
+    return b;
   }
   return b;
+}
+
+if_block parse_if_block(parser* p) {
+  int i = p->index; // Save index
+  p->ok = 1;
+
+  if_block ib;
+  parse_exact(p, 'i');
+  parse_exact(p, 'f');
+  parse_exact(p, '(');
+  parse_exact(p, ')');
+
+  if (!p->ok) {
+    p->index = i;
+    return ib;
+  }
+  ib.body = parse_scope(p);
+
+  return ib;
 }
 
 void parse_declaration(parser* p) {
@@ -421,9 +454,11 @@ int main() { \n\
   int bebi = epic(); \n\
 }";
 
-int main() {
-  int index = 0;
 
+/*
+ */
+
+int main() {
   parser p = {
     .code = program,
     .len = strlen(program),
