@@ -181,17 +181,6 @@ type parse_type(parser* p) {
   return t;
 }
 
-unit parse_until(parser* p, char c) {
-  parse_whitespace(p);
-  unit u = {.start = p->index};
-
-  while (THIS != c) p->index++;
-
-  u.end = p->index;
-
-  return u;
-}
-
 void print_type(parser* p, type t) {
   print_unit(p, t.name);
   if (t.ptr) printf("*");
@@ -424,7 +413,6 @@ void parse_top(parser* p) {
 }
 
 char* program = \
-
 "\
 int main() { \n\
   int a = 123; \n\
