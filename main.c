@@ -7,15 +7,15 @@
 char* program =\
 "\
 int main() { \n\
-  int a = 123; \n\
-  epic(); \n\
-  if () { \n\
-    if () { int \n\
-      bla = 123; \n\
-    } \n\
-  } \n\
-  int a = 456; \n\
-  int a = epic(); \n\
+  int a = 123;\n\
+  epic();\n\
+  if () {\n\
+    if () {\n\
+      int bla = 123;\n\
+    }\n\
+  }\n\
+  int a = 456;\n\
+  int a = epic();\n\
 }";
 
 int main() {
