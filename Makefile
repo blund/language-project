@@ -1,6 +1,8 @@
 
+C_FILES = main.c parse.c print.c 
+
 run:
-	gcc main.c -g3 -std=c99 && ./a.out
+	gcc $(C_FILES) -g3 -std=c99 && ./a.out
 san:
-	gcc main.c -fsanitize=address -g3 -std=c99 && ./a.out
+	gcc $(C_FILES) -fsanitize=address -g3 -std=c99 && ./a.out
 
