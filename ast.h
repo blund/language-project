@@ -15,6 +15,8 @@ typedef struct parser {
   int   len;
   int   index;
   int   ok;
+
+  int indent;
 } parser;
 
 typedef struct statement statement;

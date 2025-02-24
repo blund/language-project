@@ -2,6 +2,10 @@
 
 #include "ast.h"
 
+void indent(parser* p) {
+  printf("%*s", p->indent, " ");
+}
+
 void print_if_block(parser* p, if_block ib);
 void print_block(parser* p, block* b);
 
@@ -29,13 +33,18 @@ void print_value(parser* p, value v) {
 }
 
 void print_call(parser* p, call c) {
-    print_unit(p, c.name);
-    printf("()");
+  print_unit(p, c.name);
+  printf("()");
 }
 
 void print_if_block(parser* p, if_block ib) {
   printf("if () {\n");
+  p->indent += 2;
+
   print_block(p, ib.body);
+  p->indent -= 2;
+
+  indent(p);
   printf("}\n");
 }
 
@@ -45,6 +54,7 @@ void print_expr(parser* p, expr* e) {
 }
 
 void print_statement(parser* p, statement* s) {
+  indent(p);
   if (s->kind == statement_assign_kind) {
     print_assign(p, s->assign);
     printf(";\n");
@@ -67,9 +77,9 @@ void print_assign(parser* p, assign a) {
   print_expr(p, a.expr);
 }
 void print_block(parser* p, block* b) {
- block* iter = b;
+  block* iter = b;
 
- // @TODO unsure about this logic, but it works B)
+  // @TODO unsure about this logic, but it works B)
   for(;;) {
     print_statement(p, iter->statement);
     if (!iter->next) return;
@@ -82,6 +92,7 @@ void print_func_decl(parser* p, func_decl* f) {
   printf(" ");
   print_unit(p,  f->name);
   printf("() {\n");
+  p->indent += 2;
   print_block(p, f->body);
   printf("}\n");
 }

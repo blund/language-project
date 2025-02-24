@@ -22,6 +22,9 @@ int main() {
     .code = program,
     .len = strlen(program),
     .index = 0,
+
+    // This is for the printing after parsing
+    .indent = 0,
   };
 
   func_decl f = parse_func_decl(&p);
