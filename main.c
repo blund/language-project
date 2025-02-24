@@ -96,6 +96,9 @@ block* parse_scope(parser* p);
 statement* parse_statement(parser* p);
 if_block parse_if_block(parser* p);
 
+void print_if_block(parser* p, if_block ib);
+void print_block(parser* p, block* b);
+
 void print_unit(parser* p, unit u) {
   for (int i = u.start; i < u.end; i++) {
     printf("%c", p->code[i]);
@@ -104,7 +107,7 @@ void print_unit(parser* p, unit u) {
 
 void parse_whitespace(parser* p) {
   if (p->index >= p->len) return;
-  while (strchr(" \\\n", THIS)) p->index++;
+  while (strchr(" \\\n\t", THIS)) p->index++;
 }
 
 unit parse_text(parser* p) {
@@ -212,17 +215,30 @@ void print_call(parser* p, call c) {
     printf("()");
 }
 
+void print_if_block(parser* p, if_block ib) {
+  printf("if () {\n");
+  print_block(p, ib.body);
+  printf("}\n");
+}
+
 void print_expr(parser* p, expr* e) {
   if (e->kind == expr_value_kind) print_value(p, e->value);
   if (e->kind == expr_call_kind)  print_call(p,  e->call);
 }
 
 void print_statement(parser* p, statement* s) {
-  if (s->kind == statement_assign_kind) print_assign(p, s->assign);
-  if (s->kind == statement_call_kind)   print_call(p,   s->call);
-  if (s->kind == statement_if_kind)     puts("if-statement :)");
+  if (s->kind == statement_assign_kind) {
+    print_assign(p, s->assign);
+    printf(";\n");
+  }
+  if (s->kind == statement_call_kind) {
+    print_call(p,   s->call);
+    printf(";\n");
+  }
 
-  printf(";\n");
+  if (s->kind == statement_if_kind) {
+    print_if_block(p, s->if_block);
+  }
 }
 
 void print_assign(parser* p, assign a) {
@@ -323,7 +339,7 @@ void print_block(parser* p, block* b) {
  // @TODO unsure about this logic, but it works B)
   for(;;) {
     print_statement(p, iter->statement);
-    if (iter->next == 0) return;
+    if (!iter->next) return;
     iter = iter->next;
   }
 }
@@ -338,14 +354,15 @@ void print_func_decl(parser* p, func_decl* f) {
 }
 
 statement* parse_statement(parser* p) {
+  int i = p->index;
   parse_whitespace(p);
 
   statement* s = malloc(sizeof(statement));
- 
-  // Check assignment
+
+  // Check for if block
   p->ok = 1;
-  s->kind = statement_assign_kind;
-  s->assign = parse_assign(p);
+  s->kind = statement_if_kind;
+  s->if_block = parse_if_block(p);
   if (p->ok) {
     return s;
   }
@@ -354,19 +371,22 @@ statement* parse_statement(parser* p) {
   p->ok = 1;
   s->kind = statement_call_kind;
   s->call = parse_call(p);
+  parse_exact(p, ';');
   if (p->ok) {
     return s;
   }
 
-  /*
-  // Check for if block
+  // Check assignment
+  // @NOTE - I think there is a bug if this is not the last check here. Has to do with recovering..
   p->ok = 1;
-  s->kind = statement_if_kind;
-  s->if_block = parse_if_block(p);
-  if (p->ok) {
+  int ok = 1;
+  s->kind = statement_assign_kind;
+  s->assign = parse_assign(p);
+  parse_exact(p, ';');
+  if (ok) {
     return s;
   }
-  */
+
   return s;
 }
 
@@ -378,16 +398,16 @@ block* parse_block(parser* p) {
   b->statement = parse_statement(p);
   parse_exact(p, ';');
 
-  if (!p->ok) return b;
-
   b->next = 0;
 
   block* iter = b;
   for (;;) {
+    int i = p->index;
+    int ok = 1;
     statement* s = parse_statement(p);
-    parse_exact(p, ';');
 
     if (!p->ok) {
+      p->index = i;
       p->ok = 1; // This is an expected condition
       iter->next = 0;
       return b;
@@ -395,25 +415,27 @@ block* parse_block(parser* p) {
 
     block* next = malloc(sizeof(block));
     next->statement = s;
+    next->next = 0;
     iter->next = next;
     iter = next;
   }
- 
+
+  puts("FAILED PARSE BLOCK?");
   return b;
 }
 
 block* parse_scope(parser* p) {
-  int i = p->index;
   p->ok = 1;
   parse_exact(p, '{');
   block* b = parse_block(p);
-  parse_exact(p, '}');
-
   if (!p->ok) {
-    p->index = 1;
-    puts("error");
     return b;
   }
+  parse_exact(p, '}');
+  if (!p->ok) {
+    return b;
+  }
+
   return b;
 }
 
@@ -432,7 +454,6 @@ if_block parse_if_block(parser* p) {
     return ib;
   }
   ib.body = parse_scope(p);
-
   return ib;
 }
 
@@ -447,16 +468,13 @@ void parse_top(parser* p) {
 
 char* program = \
 "\
-int main() { \n\
-  int a = 123; \n\
-  char* b = \"schmak123\"; \n\
+int main() { \
   epic(); \n\
-  int bebi = epic(); \n\
+  int a = 123; \n\
+  if () { if () { int bla = 321; } } \n\
+  int a = 456; \n\
+  int a = epic(); \n\
 }";
-
-
-/*
- */
 
 int main() {
   parser p = {
@@ -466,5 +484,11 @@ int main() {
   };
 
   func_decl f = parse_func_decl(&p);
+  puts("------------------");
+  puts("reconstructed code");
+  puts("------------------");
   print_func_decl(&p, &f);
+
+  puts("");
+   
 }
