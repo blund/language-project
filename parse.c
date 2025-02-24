@@ -1,5 +1,6 @@
 #include "string.h"
 #include "stdlib.h"
+#include "stdio.h"
 
 #include "ast.h"
 #include "parse.h"
@@ -100,9 +101,11 @@ call parse_call(parser* p) {
   call c;
 
   c.name = parse_text(p);
-  parse_exact(p, '(');
-  parse_exact(p, ')');
-  if (!p->ok) {
+  int ok = 1;
+  parse_exact(p, '('); ok &= p->ok;
+  parse_exact(p, ')'); ok &= p->ok;
+
+  if (!ok) {
     p->index = i;
     return c;
   }
@@ -139,8 +142,8 @@ assign parse_assign(parser* p) {
 
   a.type = parse_type(p);
   a.name = parse_text(p);
-
   parse_exact(p, '=');
+
   if (!p->ok) {
     p->index = i;
     return a;
@@ -173,13 +176,38 @@ func_decl parse_func_decl(parser* p) {
   f.ret = type;
   f.body = block;
 
+  if (!p->ok) {
+    parse_error(p, p->index);
+  }
+
   return f;
 }
 
+void parse_error(parser* p, int start) {
+  int newline_count = 0;
+  for (int i = 0; i < start; i++) {
+    if (p->code[i] == '\n') newline_count++;
+  }
+
+  int next_newline_index = 0;
+  for (int i = p->index;;i++) {
+    if (p->code[i] == '\n') {
+      next_newline_index = i;
+      break;
+    }
+  }
+  printf("index: %d\n", p->index);
+  printf("next n: %d\n", next_newline_index);
+
+  printf("Parse error at line: %d\n", newline_count);
+  printf("'%.*s'\n", next_newline_index-start-1, &p->code[start]);
+
+  exit(-1);
+}
 
 statement* parse_statement(parser* p) {
-  int i = p->index;
   eat_whitespace(p);
+  int i = p->index;
 
   statement* s = malloc(sizeof(statement));
 
@@ -206,7 +234,9 @@ statement* parse_statement(parser* p) {
   int ok = 1;
   s->kind = statement_assign_kind;
   s->assign = parse_assign(p);
+  ok &= p->ok;
   parse_exact(p, ';');
+  ok &= p->ok;
   if (ok) {
     return s;
   }
@@ -216,7 +246,6 @@ statement* parse_statement(parser* p) {
 
 block* parse_block(parser* p) {
   int i = p->index;
-
 
   block* b = malloc(sizeof(block));
   b->statement = parse_statement(p);
@@ -264,15 +293,29 @@ if_block parse_if_block(parser* p) {
   p->ok = 1;
 
   if_block ib;
+
   parse_exact(p, 'i');
   parse_exact(p, 'f');
-  parse_exact(p, '(');
-  parse_exact(p, ')');
 
   if (!p->ok) {
     p->index = i;
     return ib;
   }
+
+  int ok = 1;
+  parse_exact(p, '('); ok &= p->ok;
+  parse_exact(p, ')'); ok &= p->ok;
+
+  printf("%d\n", ok);
+
+  if (!ok) {
+    parse_error(p, i);
+  }
   ib.body = parse_scope(p);
+
+  if (!p->ok) {
+    parse_error(p, i);
+  }
+
   return ib;
 }

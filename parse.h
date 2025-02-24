@@ -2,6 +2,8 @@
 
 #include "ast.h"
 
+void parse_error(parser* p, int start);
+
 void parse_whitespace(parser* p);
 unit parse_text(parser* p);
 value parse_number(parser* p);

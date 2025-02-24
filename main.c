@@ -4,12 +4,16 @@
 #include "parse.h"
 #include "print.h"
 
-char* program =					\
+char* program =\
 "\
-int main() { \
-  epic(); \n\
+int main() { \n\
   int a = 123; \n\
-  if () { if () { int bla = 321; } } \n\
+  epic(); \n\
+  if () { \n\
+    if () { int \n\
+      bla = 123; \n\
+    } \n\
+  } \n\
   int a = 456; \n\
   int a = epic(); \n\
 }";
