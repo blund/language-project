@@ -21,9 +21,9 @@ typedef enum value_type {
 
 typedef struct parser {
   char* code;
-  int len;
-  int index;
-  int ok;
+  int   len;
+  int   index;
+  int   ok;
 } parser;
 
 typedef struct statement statement;
@@ -34,13 +34,13 @@ typedef struct unit {
 } unit;
 
 typedef struct value {
-  unit data;
+  unit       data;
   value_type type;
 } value;
 
 typedef struct type {
   unit name;
-  int ptr; // 1 or 0
+  int  ptr; // 1 or 0
 } type;
 
 typedef struct call {
@@ -53,9 +53,9 @@ typedef struct block {
 } block;
 
 typedef struct func_decl {
-  unit name;
-  type ret;
-  unit params;
+  unit   name;
+  type   ret;
+  unit   params;
   block* body;
 } func_decl;
 
@@ -67,14 +67,14 @@ typedef enum expr_kind {
 typedef struct expr {
   expr_kind kind;
   union {
-    call call;
+    call  call;
     value value;
   };
 } expr;
 
 typedef struct assign {
-  type type;
-  unit name;
+  type  type;
+  unit  name;
   expr* expr;
 } assign;
 
@@ -82,7 +82,7 @@ typedef struct statement {
   statement_kind kind;
   union {
     assign assign;
-    call call;
+    call   call;
   };
 } statement;
 
@@ -281,9 +281,8 @@ assign parse_assign(parser* p) {
 
   assign a;
 
-  type type = parse_type(p);
-
-  unit name = parse_text(p);
+  a.type = parse_type(p);
+  a.name = parse_text(p);
 
   parse_exact(p, '=');
   if (!p->ok) {
@@ -291,18 +290,12 @@ assign parse_assign(parser* p) {
     return a;
   }
 
-  expr* expr  = parse_expr(p);
+  a.expr = parse_expr(p);
   
   if (!p->ok) {
     p->index = i;
     return a;
   }
-
-  a = (assign){
-    .type = type,
-    .name = name,
-    .expr = expr,
-  };
 
   return a;
 }
