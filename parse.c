@@ -4,13 +4,13 @@
 #include "ast.h"
 #include "parse.h"
 
-void parse_whitespace(parser* p) {
+void eat_whitespace(parser* p) {
   if (p->index >= p->len) return;
   while (strchr(" \\\n\t", THIS)) p->index++;
 }
 
 unit parse_text(parser* p) {
-  parse_whitespace(p);
+  eat_whitespace(p);
   p->ok = 1;
   unit u = {.start = p->index};
 
@@ -23,7 +23,7 @@ unit parse_text(parser* p) {
 }
 
 value parse_number(parser* p) {
-  parse_whitespace(p);
+  eat_whitespace(p);
   p->ok = 1; // Reset index
   int i = p->index; // Save index
 
@@ -48,7 +48,7 @@ value parse_number(parser* p) {
 }
 
 void parse_exact(parser* p, char c) {
-  parse_whitespace(p);
+  eat_whitespace(p);
 
   p->ok = THIS == c;
   if (p->ok) p->index++;
@@ -57,7 +57,7 @@ void parse_exact(parser* p, char c) {
 }
 
 value parse_string(parser* p) {
-  parse_whitespace(p);
+  eat_whitespace(p);
   p->ok = 1; // Reset index
   int i = p->index; // Save index
 
@@ -79,7 +79,7 @@ value parse_string(parser* p) {
 
 /* Types have a word and maybe a '*' */
 type parse_type(parser* p) {
-  parse_whitespace(p);
+  eat_whitespace(p);
   type t;
 
   t.name = parse_text(p);
@@ -93,7 +93,7 @@ type parse_type(parser* p) {
 
 
 call parse_call(parser* p) {
-  parse_whitespace(p);
+  eat_whitespace(p);
   p->ok = 1;
   int i = p->index;
 
@@ -111,7 +111,7 @@ call parse_call(parser* p) {
 }
 
 expr* parse_expr(parser* p) {
-  parse_whitespace(p);
+  eat_whitespace(p);
   p->ok = 1;
   expr* e = malloc(sizeof(expr));
 
@@ -131,7 +131,7 @@ expr* parse_expr(parser* p) {
 }
 
 assign parse_assign(parser* p) {
-  parse_whitespace(p);
+  eat_whitespace(p);
   p->ok = 1;
   int i = p->index;
 
@@ -157,7 +157,7 @@ assign parse_assign(parser* p) {
 }
 
 func_decl parse_func_decl(parser* p) {
-  parse_whitespace(p);
+  eat_whitespace(p);
   p->ok = 1;
 
   type type = parse_type(p);
@@ -179,11 +179,11 @@ func_decl parse_func_decl(parser* p) {
 
 statement* parse_statement(parser* p) {
   int i = p->index;
-  parse_whitespace(p);
+  eat_whitespace(p);
 
   statement* s = malloc(sizeof(statement));
 
-  // Check for if block
+  // Try if-block
   p->ok = 1;
   s->kind = statement_if_kind;
   s->if_block = parse_if_block(p);
@@ -191,7 +191,7 @@ statement* parse_statement(parser* p) {
     return s;
   }
 
-  // Check Check for function call
+  // Try function call
   p->ok = 1;
   s->kind = statement_call_kind;
   s->call = parse_call(p);
@@ -200,7 +200,7 @@ statement* parse_statement(parser* p) {
     return s;
   }
 
-  // Check assignment
+  // Try assignment
   // @NOTE - I think there is a bug if this is not the last check here. Has to do with recovering..
   p->ok = 1;
   int ok = 1;
@@ -220,10 +220,8 @@ block* parse_block(parser* p) {
 
   block* b = malloc(sizeof(block));
   b->statement = parse_statement(p);
-  parse_exact(p, ';');
 
   b->next = 0;
-
   block* iter = b;
   for (;;) {
     int i = p->index;
